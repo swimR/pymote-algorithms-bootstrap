@@ -1,6 +1,7 @@
 from pymote.networkgenerator import NetworkGenerator
 from pymote.simulation import Simulation
 from pymote.algorithms import dfstar
+from pymote.algorithms import traversal
 from pymote.npickle import write_pickle
 from pymote.network import Network
 
@@ -91,7 +92,7 @@ def network8():
 
 
 def network9():
-    net_gen = NetworkGenerator(5, commRange=250)
+    net_gen = NetworkGenerator(5, commRange=400)
     net = net_gen.generate_random_network()
     return net
 
@@ -103,22 +104,26 @@ def network10():
 
 
 def test_network():
-    net = network1()
-    net.algorithms = (dfstar.DFStar, )
-    sim = Simulation(net)
-    try:
-        sim.run()
-    except Exception, e:
-        import pdb; pdb.set_trace()
-        write_pickle(net, 'net_exception.npc.gz')
-        raise e
+    algorithmsList = [dfstar.DFStar, traversal.DFT]
+    for algorithm in algorithmsList:
+        netList = [network1(), network2(), network3(), network4(), network5(), network6(), network7(), network8(),
+                   network9(), network10()]
+        for net in netList:
+            net.algorithms = (algorithm, )
+            sim = Simulation(net)
+            try:
+                sim.run()
+            except Exception, e:
+                import pdb; pdb.set_trace()
+                write_pickle(net, 'net_exception.npc.gz')
+                raise e
 
-    for node in net.nodes():
-        try:
-            assert node.status == 'DONE'
-            assert len(node.memory['unvisitedNodes']) == 0
-        except AssertionError:
-            write_pickle(net, 'net_assertion_error.npc.gz')
+            for node in net.nodes():
+                try:
+                    assert node.status == 'DONE'
+                    assert len(node.memory['unvisitedNodes']) == 0
+                except AssertionError:
+                    write_pickle(net, 'net_assertion_error.npc.gz')
 
 
 if __name__=='__main__':

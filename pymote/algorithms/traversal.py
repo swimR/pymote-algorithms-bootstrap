@@ -3,22 +3,16 @@ from pymote.message import Message
 
 
 class DFT(NodeAlgorithm):
-    required_params = ('informationKey',)
+    required_params = ()
     default_params = {'neighborsKey': 'Neighbors'}
 
     def initializer(self):
-        ini_nodes = []
         for node in self.network.nodes():
-            node.memory[self.neighborsKey] = \
-                node.compositeSensor.read()['Neighbors']
+            node.memory[self.neighborsKey] = node.compositeSensor.read()['Neighbors']
             node.status = 'IDLE'
-            
-            if self.informationKey in node.memory:
-                node.status = 'INITIATOR'
-                ini_nodes.append(node)
-        for ini_node in ini_nodes:
-            self.network.outbox.insert(0, Message(header=NodeAlgorithm.INI,
-                                                 destination=ini_node))
+        ini_node = self.network.nodes()[0]
+        ini_node.status = 'INITIATOR'
+        self.network.outbox.insert(0, Message(header=NodeAlgorithm.INI, destination=ini_node))
 
     def initiator(self, node, message):
         node.memory['unvisitedNodes'] = list(node.memory[self.neighborsKey])
