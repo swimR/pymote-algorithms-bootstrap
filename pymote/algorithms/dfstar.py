@@ -1,32 +1,34 @@
 from pymote.algorithm import NodeAlgorithm
 from pymote.message import Message
 
-class DF(NodeAlgorithm):
-    required_params = ('informationKey',)
+class DFStar(NodeAlgorithm):
+    required_params = ()
     default_params = {'neighborsKey': 'Neighbors'}
 
     def initializer(self):
         for node in self.network.nodes():
             node.memory[self.neighborsKey] = node.compositeSensor.read()['Neighbors']
             node.status = 'IDLE'
-            if self.informationKey in node.memory:
-                ini_node = node
+        ini_node = self.network.nodes()[0]  
         ini_node.status = 'INITIATOR'
         self.network.outbox.insert(0, Message(header=NodeAlgorithm.INI, destination=ini_node))
 
     def initiator(self, node, message):
         node.memory['initiator'] = True
         node.memory['unvisitedNodes'] = list(node.memory[self.neighborsKey])
-        next_node = node.memory['unvisitedNodes'][0]
-        node.send(Message(destination=next_node, header='Traversal', data=message.data))
-        
-        for n in range(len(node.memory[self.neighborsKey])):
-            if node.memory[self.neighborsKey][n] is not next_node:
-                node.send(Message(destination=node.memory[self.neighborsKey][n], header='Visited', data=message.data))
-        node.status = 'VISITED'
+        if len(node.memory['unvisitedNodes']) > 0:
+            node.memory['next_node'] = node.memory['unvisitedNodes'].pop()
+            node.send(Message(destination=node.memory['next_node'], header='T', data=message.data))
+
+            for n in range(len(node.memory[self.neighborsKey])):
+                if node.memory[self.neighborsKey][n] is not node.memory['next_node']:
+                    node.send(Message(destination=node.memory[self.neighborsKey][n], header='Visited', data=message.data))
+            node.status = 'VISITED'
+        else:
+            node.status = 'DONE'
 
     def idle(self, node, message):
-        if message.header == 'Traversal':
+        if message.header == 'T':
             node.memory['unvisitedNodes'] = list(node.memory[self.neighborsKey])
             self.first_visit(node, message)
         elif message.header == 'Visited':
@@ -35,15 +37,15 @@ class DF(NodeAlgorithm):
             node.status = 'AVAILABLE'
 
     def available(self, node, message):
-        if message.header == 'Traversal':
+        if message.header == 'T':
             self.first_visit(node, message)
         elif message.header == 'Visited':
             node.memory['unvisitedNodes'].remove(message.source)
 
     def visited(self, node, message):
-        if message.header == 'Visited' or message.header == 'Traversal':
+        if message.header == 'Visited' or message.header == 'T':
             node.memory['unvisitedNodes'].remove(message.source)
-            if node.memory['unvisitedNodes'][0] is message.source:
+            if node.memory['next_node'] is message.source:
                 self.visit(node, message)
         elif message.header == 'Return':
             self.visit(node, message)            
@@ -51,13 +53,15 @@ class DF(NodeAlgorithm):
     def first_visit(self, node, message):
         node.memory['initiator'] = False
         node.memory['entry'] = message.source
-        node.memory['unvisitedNodes'].remove(message.source)
+
+        if message.source in node.memory['unvisitedNodes']:
+            node.memory['unvisitedNodes'].remove(message.source)
 
         if len(node.memory['unvisitedNodes']) != 0:
-            next_node = node.memory['unvisitedNodes'][0]
-            node.send(Message(destination=next_node,header='Traversal',data=message.data))
+            node.memory['next_node'] = node.memory['unvisitedNodes'].pop()
+            node.send(Message(destination=node.memory['next_node'],header='T',data=message.data))
             for n in range(len(node.memory[self.neighborsKey])):
-                if node.memory[self.neighborsKey][n] is not node.memory['entry'] and node.memory[self.neighborsKey][n] is not next_node:
+                if node.memory[self.neighborsKey][n] is not node.memory['entry'] and node.memory[self.neighborsKey][n] is not node.memory['next_node']:
                     node.send(Message(destination=node.memory[self.neighborsKey][n], header='Visited', data=message.data))
             node.status = 'VISITED'
         else:
@@ -69,8 +73,8 @@ class DF(NodeAlgorithm):
 
     def visit(self, node, message):
         if len(node.memory['unvisitedNodes']) != 0:
-            next_node = node.memory['unvisitedNodes'][0]
-            node.send(Message(destination=next_node, header='Traversal', data=message.data))
+            node.memory['next_node'] = node.memory['unvisitedNodes'].pop()
+            node.send(Message(destination=node.memory['next_node'], header='T', data=message.data))
         else:
             if node.memory['initiator'] == False:
                 node.send(Message(destination=node.memory['entry'], header='Return', data=message.data))

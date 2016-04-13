@@ -4,7 +4,7 @@ from pymote.message import Message
 
 class DFT(NodeAlgorithm):
     required_params = ('informationKey',)
-    default_params = {'neighborsKey': 'Neighbors', 'unvisitedNodes': 'Nodes', 'entry': -1, 'initiator': False}
+    default_params = {'neighborsKey': 'Neighbors'}
 
     def initializer(self):
         ini_nodes = []
@@ -21,40 +21,40 @@ class DFT(NodeAlgorithm):
                                                  destination=ini_node))
 
     def initiator(self, node, message):
-        node.memory[self.unvisitedNodes] = list(node.memory[self.neighborsKey])
-        node.memory[self.initiator] = True
+        node.memory['unvisitedNodes'] = list(node.memory[self.neighborsKey])
+        node.memory['initiator'] = True
         self.visit(node, message)
 
     def idle(self, node, message):
-        node.memory[self.entry] = message.source
-        node.memory[self.unvisitedNodes] = list(node.memory[self.neighborsKey])
-        node.memory[self.unvisitedNodes].remove(message.source)
-        node.memory[self.initiator] = False
+        node.memory['entry'] = message.source
+        node.memory['unvisitedNodes'] = list(node.memory[self.neighborsKey])
+        node.memory['unvisitedNodes'].remove(message.source)
+        node.memory['initiator'] = False
         self.visit(node, message)
 
     def visited(self, node, message):
         if message.header == 'Traversal':
-            node.memory[self.unvisitedNodes].remove(message.source)
+            node.memory['unvisitedNodes'].remove(message.source)
             node.send(Message(destination=message.source,
                                   header='Backedge',
                                   data=message.data))
         elif message.header == 'Return':
-            node.memory[self.unvisitedNodes].remove(message.source)
+            node.memory['unvisitedNodes'].remove(message.source)
             self.visit(node, message)
         elif message.header == 'Backedge':
-            node.memory[self.unvisitedNodes].remove(message.source)
+            node.memory['unvisitedNodes'].remove(message.source)
             self.visit(node, message)
 
     def visit(self, node, message):
-        if len(node.memory[self.unvisitedNodes]) != 0:
-            next_node = node.memory[self.unvisitedNodes][0]
+        if len(node.memory['unvisitedNodes']) != 0:
+            next_node = node.memory['unvisitedNodes'][0]
             node.send(Message(destination=next_node,
                                   header='Traversal',
                                   data=message.data))
             node.status = 'VISITED'
         else:
-            if node.memory[self.initiator] == False:
-                node.send(Message(destination=node.memory[self.entry],
+            if node.memory['initiator'] == False:
+                node.send(Message(destination=node.memory['entry'],
                                       header='Return',
                                       data=message.data))
             node.status = 'DONE'
