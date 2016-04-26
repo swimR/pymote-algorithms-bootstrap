@@ -12,15 +12,12 @@ class Saturation(NodeAlgorithm):
         ini_node = self.network.nodes()[0]
         self.network.outbox.insert(0, Message(header=NodeAlgorithm.INI, destination=ini_node))
 
-    def available(self, node, message):
-        nodeNeighbors = list(node.memory[self.neighborsKey])
-        if message.header == 'Activate':
-            nodeNeighbors.remove(message.source)
 
+    def send_message(self, node, message, nodeNeighbors):
         for i in range(len(nodeNeighbors)):
             node.send(Message(destination=nodeNeighbors[i], header='Activate', data=message.data))
 
-        self.initialize(self, node, message)
+        self.initialize(node, message)
 
         node.memory['neighbors'] = list(node.memory[self.neighborsKey])
         if len(node.memory['neighbors']) == 1:
@@ -31,22 +28,32 @@ class Saturation(NodeAlgorithm):
         else:
             node.status = 'ACTIVE'
 
+    def available(self, node, message):
+        nodeNeighbors = list(node.memory[self.neighborsKey])
+
+        if message.header == NodeAlgorithm.INI:
+            self.send_message(node, message, nodeNeighbors)
+        elif message.header == 'Activate':
+            nodeNeighbors.remove(message.source)
+            self.send_message(node, message, nodeNeighbors)
+
+
     def active(self, node, message):
 
         if message.header == 'Message':
-            self.process_message(self, node, message)
+            self.process_message(node, message)
             node.memory['neighbors'].remove(message.source)
 
-        if len(node.memory['neighbors']) == 1:
-            self.prepare_message(node, message)
-            node.memory['parent'] = node.memory['neighbors'].pop()
-            node.send(Message(destination=node.memory['parent'], header='Message', data=message.data))
-            node.status = 'PROCESSING'
+            if len(node.memory['neighbors']) == 1:
+                self.prepare_message(node, message)
+                node.memory['parent'] = node.memory['neighbors'].pop()
+                node.send(Message(destination=node.memory['parent'], header='Message', data=message.data))
+                node.status = 'PROCESSING'
 
     def processing(self, node, message):
         if message.header == 'Message':
-            self.process_message(self, node, message)
-            self.resolve(self, node, message)
+            self.process_message(node, message)
+            self.resolve(node, message)
 
     def initialize(self, node, message):
         raise NotImplementedError
@@ -78,7 +85,8 @@ class Center(Saturation):
         node.memory['max2_value'] = 0
 
     def prepare_message(self, node, message):
-        node.memory['max_value'] += 1
+        node.memory['max_value'] = node.memory['max_value'] + 1
+        message.data = node.memory['max_value']
 
     def process_message(self, node, message):
         if node.memory['max_value'] < message.data:
@@ -92,21 +100,23 @@ class Center(Saturation):
     def resolve(self, node, message):
         if node.memory['max_value'] - node.memory['max2_value'] == 1:
             if node.memory['max_neighbor'] is not node.memory['parent']:
-                node.send(Message(destination=node.memory['max_neighbor'], header='Center', data=node.memory['max2_value']))
+                node.send(Message(destination=node.memory['max_neighbor'], header='Center', data=node.memory['max2_value'] + 1))
             node.status = 'CENTER'
+            node.memory['center'] = True
         else:
             if node.memory['max_value'] - node.memory['max2_value'] > 1:
-                node.send(Message(destination=node.memory['max_neighbor'], header='Center', data=node.memory['max2_value']))
+                node.send(Message(destination=node.memory['max_neighbor'], header='Center', data=node.memory['max2_value'] + 1))
             else:
                 node.status = 'CENTER'
+                node.memory['center'] = True
 
     def center(self, node, message):
         pass
 
     STATUS = {
-        'AVAILABLE': available,
-        'ACTIVE': active,
+        'AVAILABLE': Saturation.STATUS.get('AVAILABLE'),
+        'ACTIVE': Saturation.STATUS.get('ACTIVE'),
         'PROCESSING': processing,
-        'SATURATED': saturated,
+        'SATURATED': Saturation.STATUS.get('SATURATED'),
         'CENTER': center
     }
