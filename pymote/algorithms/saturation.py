@@ -76,6 +76,7 @@ class Saturation(NodeAlgorithm):
 
 class Center(Saturation):
     def processing(self, node, message):
+        super(Center, self).processing(node, message);
         if message.header == 'Center':
             self.process_message(node, message)
             self.resolve(node, message)
