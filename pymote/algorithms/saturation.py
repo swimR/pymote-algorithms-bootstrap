@@ -86,8 +86,8 @@ class Center(Saturation):
         node.memory['max2_value'] = 0
 
     def prepare_message(self, node, message):
-        node.memory['max_value'] = node.memory['max_value'] + 1
-        message.data = node.memory['max_value']
+        #node.memory['max_value'] = node.memory['max_value'] + 1
+        message.data = node.memory['max_value'] + 1
 
     def process_message(self, node, message):
         if node.memory['max_value'] < message.data:
